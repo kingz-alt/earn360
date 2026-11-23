@@ -240,7 +240,7 @@ Deno.serve(async (req: Request) => {
       }
       const videos = [];
       for (const a of assignments || []) {
-        const { data: signed } = await admin.storage.from("earn360-private").createSignedUrl(a.earn360_videos.storage_path, 3600);
+        const { data: signed } = await admin.storage.from("earn360-video-library").createSignedUrl(a.earn360_videos.storage_path, 3600);
         videos.push({ id: a.video_id, title: a.earn360_videos.title, duration_seconds: a.earn360_videos.duration_seconds, url: signed?.signedUrl || null, completed: !!a.completed_at, watched_seconds: a.watched_seconds || 0 });
       }
       const wallet = await statsFor(u);
