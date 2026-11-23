@@ -296,11 +296,12 @@ Deno.serve(async (req: Request) => {
 
     if (path === "/api/admin/dashboard" && method === "GET") {
       await requireAdmin(profile);
-      const [memberCount, pendingDeposits, pendingWithdrawals, activeSubs, depositRows, withdrawalRows, activityRows] = await Promise.all([
+      const [memberCount, pendingDeposits, pendingWithdrawals, activeSubs, videoCount, depositRows, withdrawalRows, activityRows] = await Promise.all([
         one(admin.from("profiles").select("id", { count: "exact", head: true })),
         one(admin.from("deposits").select("id", { count: "exact", head: true }).eq("status", "pending")),
         one(admin.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending")),
         one(admin.from("memberships").select("id", { count: "exact", head: true }).eq("status", "active")),
+        one(admin.from("earn360_videos").select("id", { count: "exact", head: true })),
         one(admin.from("deposits").select("id,user_id,amount,currency,payment_method,transaction_id,proof_url,purpose,status,created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(50)),
         one(admin.from("withdrawal_requests").select("id,user_id,amount,fee,net_amount,payment_method,account_details,status,created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(50)),
         one(admin.from("earn360_activity_submissions").select("id,user_id,activity_type,verified_steps,videos_completed,evidence_path,status,earning_date,created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(50)),
@@ -313,7 +314,51 @@ Deno.serve(async (req: Request) => {
       const withdrawal_queue = (withdrawalRows || []).map((x: any) => ({ id: x.id, member: names.get(x.user_id) || "Member", member_email: "", gross_usd: Number(x.amount), fee_usd: Number(x.fee), net_usd: Number(x.net_amount), payout_method: x.payment_method, payout_reference: x.account_details, created_at: x.created_at }));
       const activity_queue = [];
       for (const x of activityRows || []) activity_queue.push({ id: x.id, member: names.get(x.user_id) || "Member", activity_type: x.activity_type, steps: x.verified_steps, videos_completed: x.videos_completed, earning_date: x.earning_date, created_at: x.created_at, evidence_signed_url: await signedEvidence(x.evidence_path) });
-      return reply({ member_count: memberCount?.count || 0, pending_deposits: pendingDeposits?.count || 0, pending_withdrawals: pendingWithdrawals?.count || 0, active_subscriptions: activeSubs?.count || 0, queue, withdrawal_queue, activity_queue });
+      return reply({ member_count: memberCount?.count || 0, pending_deposits: pendingDeposits?.count || 0, pending_withdrawals: pendingWithdrawals?.count || 0, active_subscriptions: activeSubs?.count || 0, video_count: videoCount?.count || 0, queue, withdrawal_queue, activity_queue });
+    }
+
+
+    if (path === "/api/admin/videos/upload-url" && method === "POST") {
+      await requireAdmin(profile);
+      const title = String(body.title || "").trim().slice(0, 160);
+      const filename = String(body.filename || "video.mp4");
+      const mime = String(body.mime_type || "");
+      const duration = Math.floor(Number(body.duration_seconds || 0));
+      if (!title || !["video/mp4", "video/webm"].includes(mime) || duration < 1 || duration > 7200) return fail("Choose an MP4 or WebM video with valid duration metadata.");
+      const { count, error: countError } = await admin.from("earn360_videos").select("id", { count: "exact", head: true });
+      if (countError) throw countError;
+      if ((count || 0) >= 120) return fail("The private video library already contains 120 videos.");
+      const last = await one(admin.from("earn360_videos").select("sequence_number").order("sequence_number", { ascending: false }).limit(1));
+      const sequence = Number(last?.[0]?.sequence_number || 0) + 1;
+      const pathName = "videos/" + String(sequence).padStart(3, "0") + "-" + crypto.randomUUID() + "-" + safeName(filename);
+      const { data: signed, error: signedError } = await admin.storage.from("earn360-video-library").createSignedUploadUrl(pathName);
+      if (signedError) throw signedError;
+      const video = await one(admin.from("earn360_videos").insert({ title, storage_path: pathName, duration_seconds: duration, sequence_number: sequence, active: false }).select("id").single());
+      return reply({ video_id: video.id, path: pathName, token: signed.token, sequence_number: sequence }, 201);
+    }
+
+    if (path === "/api/admin/videos/activate" && method === "POST") {
+      await requireAdmin(profile);
+      const videoId = String(body.video_id || "");
+      const video = await one(admin.from("earn360_videos").select("id,storage_path,active").eq("id", videoId).maybeSingle());
+      if (!video) return fail("Video upload record was not found.");
+      const { error: fileError } = await admin.storage.from("earn360-video-library").createSignedUrl(video.storage_path, 60);
+      if (fileError) return fail("The video file has not finished uploading.");
+      const { error } = await admin.from("earn360_videos").update({ active: true }).eq("id", videoId);
+      if (error) throw error;
+      return reply({ message: "Video added to the private Watch & Earn library.", video_id: videoId });
+    }
+
+    if (path === "/api/admin/videos/cancel" && method === "POST") {
+      await requireAdmin(profile);
+      const videoId = String(body.video_id || "");
+      const video = await one(admin.from("earn360_videos").select("id,storage_path,active").eq("id", videoId).maybeSingle());
+      if (!video) return reply({ success: true });
+      if (video.active) return fail("An active video cannot be removed through upload cancellation.");
+      await admin.storage.from("earn360-video-library").remove([video.storage_path]);
+      const { error } = await admin.from("earn360_videos").delete().eq("id", videoId).eq("active", false);
+      if (error) throw error;
+      return reply({ success: true });
     }
 
     if (path === "/api/admin/payment-details" && method === "GET") {
