@@ -21,20 +21,21 @@ jobs:
         run: |
           node - <<'NODE'
           const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
           const html = fs.readFileSync('index.html', 'utf8');
-          const scripts = [...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)]
+          const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)]
             .map(match => match[1]).filter(source => source.trim());
           if (!scripts.length) throw new Error('No inline JavaScript found');
           scripts.forEach((source, index) => {
             const file = `/tmp/earn360-inline-${index}.js`;
             fs.writeFileSync(file, source);
-            require('node:child_process').execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
+            execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
           });
           console.log(`Validated ${scripts.length} inline script(s).`);
           NODE
-      - name: Check for private service-role credentials
+      - name: Check for private credentials in frontend
         run: |
-          if grep -Eiq 'sb_secret_[A-Za-z0-9_-]{20,}|service_role[[:space:]]*[:=][[:space:]]*["\x27]eyJ' index.html; then
+          if grep -Eiq 'sb_secret_[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{30,}[.]' index.html; then
             echo "Possible private Supabase credential found in frontend."
             exit 1
           fi
