@@ -56,6 +56,11 @@ async function one(query: any) {
   if (error) throw error;
   return data;
 }
+async function countRows(query: any) {
+  const { count, error } = await query;
+  if (error) throw error;
+  return count || 0;
+}
 async function getActiveMembership(userId: string) {
   const rows = await one(admin.from("memberships").select("id,user_id,plan_id,status,purchased_at,starts_at,ends_at,earning_days_completed,membership_plans(id,name,price_usd,weekly_reward_usd)").eq("user_id", userId).eq("status", "active").order("purchased_at", { ascending: false }).limit(1));
   const m = rows?.[0] ?? null;
@@ -297,11 +302,11 @@ Deno.serve(async (req: Request) => {
     if (path === "/api/admin/dashboard" && method === "GET") {
       await requireAdmin(profile);
       const [memberCount, pendingDeposits, pendingWithdrawals, activeSubs, videoCount, depositRows, withdrawalRows, activityRows] = await Promise.all([
-        one(admin.from("profiles").select("id", { count: "exact", head: true })),
-        one(admin.from("deposits").select("id", { count: "exact", head: true }).eq("status", "pending")),
-        one(admin.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending")),
-        one(admin.from("memberships").select("id", { count: "exact", head: true }).eq("status", "active")),
-        one(admin.from("earn360_videos").select("id", { count: "exact", head: true })),
+        countRows(admin.from("profiles").select("id", { count: "exact", head: true })),
+        countRows(admin.from("deposits").select("id", { count: "exact", head: true }).eq("status", "pending")),
+        countRows(admin.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending")),
+        countRows(admin.from("memberships").select("id", { count: "exact", head: true }).eq("status", "active")),
+        countRows(admin.from("earn360_videos").select("id", { count: "exact", head: true })),
         one(admin.from("deposits").select("id,user_id,amount,currency,payment_method,transaction_id,proof_url,purpose,status,created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(50)),
         one(admin.from("withdrawal_requests").select("id,user_id,amount,fee,net_amount,payment_method,account_details,status,created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(50)),
         one(admin.from("earn360_activity_submissions").select("id,user_id,activity_type,verified_steps,videos_completed,evidence_path,status,earning_date,created_at").eq("status", "pending").order("created_at", { ascending: true }).limit(50)),
@@ -314,7 +319,7 @@ Deno.serve(async (req: Request) => {
       const withdrawal_queue = (withdrawalRows || []).map((x: any) => ({ id: x.id, member: names.get(x.user_id) || "Member", member_email: "", gross_usd: Number(x.amount), fee_usd: Number(x.fee), net_usd: Number(x.net_amount), payout_method: x.payment_method, payout_reference: x.account_details, created_at: x.created_at }));
       const activity_queue = [];
       for (const x of activityRows || []) activity_queue.push({ id: x.id, member: names.get(x.user_id) || "Member", activity_type: x.activity_type, steps: x.verified_steps, videos_completed: x.videos_completed, earning_date: x.earning_date, created_at: x.created_at, evidence_signed_url: await signedEvidence(x.evidence_path) });
-      return reply({ member_count: memberCount?.count || 0, pending_deposits: pendingDeposits?.count || 0, pending_withdrawals: pendingWithdrawals?.count || 0, active_subscriptions: activeSubs?.count || 0, video_count: videoCount?.count || 0, queue, withdrawal_queue, activity_queue });
+      return reply({ member_count: memberCount || 0, pending_deposits: pendingDeposits || 0, pending_withdrawals: pendingWithdrawals || 0, active_subscriptions: activeSubs || 0, video_count: videoCount || 0, queue, withdrawal_queue, activity_queue });
     }
 
 
