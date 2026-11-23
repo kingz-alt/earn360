@@ -1,0 +1,40 @@
+name: Earn360 frontend validation
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check HTML entry point exists
+        run: test -s index.html
+      - name: Check inline JavaScript syntax
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const html = fs.readFileSync('index.html', 'utf8');
+          const scripts = [...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)]
+            .map(match => match[1]).filter(source => source.trim());
+          if (!scripts.length) throw new Error('No inline JavaScript found');
+          scripts.forEach((source, index) => {
+            const file = `/tmp/earn360-inline-${index}.js`;
+            fs.writeFileSync(file, source);
+            require('node:child_process').execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
+          });
+          console.log(`Validated ${scripts.length} inline script(s).`);
+          NODE
+      - name: Check for private service-role credentials
+        run: |
+          if grep -Eiq 'sb_secret_[A-Za-z0-9_-]{20,}|service_role[[:space:]]*[:=][[:space:]]*["\x27]eyJ' index.html; then
+            echo "Possible private Supabase credential found in frontend."
+            exit 1
+          fi
