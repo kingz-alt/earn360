@@ -373,7 +373,7 @@ Deno.serve(async (req: Request) => {
       const topic = String(body.topic || "general");
       if (!["local_culture","society","environment","everyday_life","general"].includes(topic)) return fail("Choose a valid local training topic.");
       if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) return fail("Choose a valid target country or leave it global.");
-      const allowedTypes = ["audio","image","image_labeling","text","translation"];
+      const allowedTypes = ["audio","image","image_labeling","text"];
       
       const title = String(body.title || "").trim().slice(0,120);
       const instructions = String(body.instructions || "").trim().slice(0,500);
