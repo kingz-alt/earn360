@@ -129,6 +129,13 @@ Deno.serve(async (req: Request) => {
       return reply({ plans: (plans || []).map((p: any) => ({ ...p, price: p.price_usd, weekly: p.weekly_reward_usd, featured: p.name === "Silver" })) });
     }
 
+    if (method === "GET" && path === "/api/member/promotions") {
+      const now = new Date();
+      const rows = await one(admin.from("earn360_promotions").select("id,title,description,promotion_type,reward_percent,reward_amount_usd,eligible_rank,terms,starts_at,ends_at").eq("active", true).order("starts_at", { ascending: false }).limit(100));
+      const promotions = (rows || []).filter((x: any) => new Date(x.starts_at) <= now && (!x.ends_at || new Date(x.ends_at) >= now));
+      return reply({ promotions });
+    }
+
     if (method === "GET" && path === "/api/member/dashboard") {
       const [subscription, wallet] = await Promise.all([getActiveMembership(u), statsFor(u)]);
       return reply({ subscription: subscription ? {
@@ -335,6 +342,45 @@ Deno.serve(async (req: Request) => {
       if (!subject || subject.length > 160 || !message || message.length > 5000) return fail("Enter a subject and message (maximum 5,000 characters).");
       const ticket = await one(admin.from("support_tickets").insert({ user_id: u, subject, message }).select("id,status,created_at").single());
       return reply({ message: "Support request sent.", ticket }, 201);
+    }
+
+    if (path === "/api/admin/promotions" && method === "GET") {
+      await requireAdmin(profile);
+      const rows = await one(admin.from("earn360_promotions").select("id,title,description,promotion_type,reward_percent,reward_amount_usd,eligible_rank,terms,starts_at,ends_at,active,created_at").order("created_at", { ascending: false }).limit(100));
+      return reply({ promotions: rows || [] });
+    }
+
+    if (path === "/api/admin/promotions" && method === "POST") {
+      await requireAdmin(profile);
+      const title = String(body.title || "").trim().slice(0, 100);
+      const description = String(body.description || "").trim().slice(0, 500);
+      const type = String(body.promotion_type || "");
+      const percent = Number(body.reward_percent || 0);
+      const amount = Number(body.reward_amount_usd || 0);
+      const eligibleRank = String(body.eligible_rank || "").trim().slice(0, 60) || null;
+      const terms = String(body.terms || "").trim().slice(0, 2000);
+      const startsAt = body.starts_at ? new Date(body.starts_at) : new Date();
+      const endsAt = body.ends_at ? new Date(body.ends_at) : null;
+      const allowed = ["rank_day_refund","half_deposit_refund","rank_upgrade","cashback","free_subscription"];
+      if (title.length < 3 || description.length < 3 || !allowed.includes(type)) return fail("Enter a title, description and valid promotion type.");
+      if (!Number.isFinite(percent) || percent < 0 || percent > 100 || !Number.isFinite(amount) || amount < 0) return fail("Enter a valid reward amount or percentage.");
+      if (Number.isNaN(startsAt.getTime()) || (endsAt && (Number.isNaN(endsAt.getTime()) || endsAt <= startsAt))) return fail("Enter valid promotion dates.");
+      if (type === "half_deposit_refund" && percent !== 50) return fail("The half-deposit promotion must be set to exactly 50%.");
+      const row = await one(admin.from("earn360_promotions").insert({
+        title, description, promotion_type: type, reward_percent: percent,
+        reward_amount_usd: amount, eligible_rank: eligibleRank, terms,
+        starts_at: startsAt.toISOString(), ends_at: endsAt?.toISOString() || null,
+        active: !!body.active, created_by: u
+      }).select("id,title,description,promotion_type,reward_percent,reward_amount_usd,eligible_rank,terms,starts_at,ends_at,active,created_at").single());
+      return reply({ message: "Promotion created.", promotion: row }, 201);
+    }
+
+    if (path === "/api/admin/promotions" && method === "PATCH") {
+      await requireAdmin(profile);
+      const id = String(body.promotion_id || "");
+      if (!/^[0-9a-f-]{36}$/i.test(id) || typeof body.active !== "boolean") return fail("Choose a valid promotion and status.");
+      const row = await one(admin.from("earn360_promotions").update({ active: body.active, updated_at: new Date().toISOString() }).eq("id", id).select("id,active").single());
+      return reply({ message: body.active ? "Promotion published." : "Promotion paused.", promotion: row });
     }
 
     if (path === "/api/admin/dashboard" && method === "GET") {
