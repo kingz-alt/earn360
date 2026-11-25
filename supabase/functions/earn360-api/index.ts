@@ -24,7 +24,7 @@ function isWeekday(day: string) {
 function safeName(v: string) { return v.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100); }
 
 function normalizeTaskAnswer(value: unknown) {
-  return String(value ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 async function uploadTrainingAsset(userId: string, base64: string, mime: string, filename: string) {
   const allowed: Record<string,string> = {
