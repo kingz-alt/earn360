@@ -37,6 +37,8 @@ create table if not exists public.earn360_ai_tasks (
 );
 alter table public.earn360_ai_tasks add column if not exists language_code text not null default 'en';
 alter table public.earn360_ai_tasks add column if not exists audio_text text;
+alter table public.earn360_ai_tasks drop constraint if exists earn360_ai_tasks_language_code_check;
+alter table public.earn360_ai_tasks add constraint earn360_ai_tasks_language_code_check check (language_code in ('en','fr','sw'));
 create index if not exists earn360_ai_tasks_language_active_idx
   on public.earn360_ai_tasks(language_code, active);
 
