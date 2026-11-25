@@ -15,7 +15,7 @@ function reply(body: unknown, status = 200) {
 }
 function fail(message: string, status = 400) { return reply({ success: false, error: message }, status); }
 function dateInLome() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lome", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 function isWeekday(day: string) {
   const d = new Date(day + "T12:00:00Z").getUTCDay();
@@ -188,9 +188,9 @@ Deno.serve(async (req: Request) => {
     if (method === "PATCH" && path === "/api/member/preferences") {
       const country = String(body.country || "").toUpperCase();
       const currency = String(body.display_currency || "").toUpperCase();
-      const language = String(body.preferred_language || "").toLowerCase();
+      const language = "en";
       if (!/^[A-Z]{2}$/.test(country) || !/^[A-Z]{3}$/.test(currency)) return fail("Choose a valid country and display currency.");
-      if (!["en","fr","sw"].includes(language)) return fail("Choose English, French or Swahili as your training language.");
+      
       const { data, error } = await admin.from("profiles").update({ country, display_currency: currency, preferred_language: language }).eq("id", u).select("country,display_currency,preferred_language").single();
       if (error) throw error;
       const today = dateInLome();
@@ -290,7 +290,7 @@ Deno.serve(async (req: Request) => {
       const completed = tasks.filter((x: any) => x.status === "approved").length;
       const reward = Number(sub.membership_plans?.weekly_reward_usd || 0) / 5;
       return reply({
-        active: true, preferred_language: tasks[0]?.language_code || profile.preferred_language || "en", activity_completed: tasks.length > 0 && completed === tasks.length,
+        active: true, preferred_language: "en", activity_completed: tasks.length > 0 && completed === tasks.length,
         message: tasks.length ? (completed === tasks.length ? "You completed today's AI Training tasks." : "Complete your simple daily AI Training tasks to earn today's reward.") : "Daily tasks are being prepared. Please check again shortly.",
         activity_label: "AI Training", tasks_required: tasks.length, tasks_completed: completed,
         progress_percent: tasks.length ? Math.round(completed / tasks.length * 100) : 0,
@@ -358,7 +358,7 @@ Deno.serve(async (req: Request) => {
 
     if (path === "/api/admin/ai-training/tasks" && method === "GET") {
       await requireAdmin(profile);
-      const rows = await one(admin.from("earn360_ai_tasks").select("id,task_type,language_code,title,instructions,prompt,audio_text,options,expected_answer,asset_path,asset_mime,active,created_at").order("created_at", { ascending: false }));
+      const rows = await one(admin.from("earn360_ai_tasks").select("id,task_type,language_code,country_code,title,instructions,prompt,audio_text,options,expected_answer,asset_path,asset_mime,active,created_at").order("created_at", { ascending: false }));
       const tasks = [];
       for (const t of rows || []) tasks.push({ ...t, asset_signed_url: t.asset_path ? await signedEvidence(t.asset_path) : null });
       const setting = await one(admin.from("earn360_settings").select("value").eq("key","ai_training").maybeSingle());
@@ -368,9 +368,11 @@ Deno.serve(async (req: Request) => {
     if (path === "/api/admin/ai-training/tasks" && method === "POST") {
       await requireAdmin(profile);
       const taskType = String(body.task_type || "");
-      const languageCode = String(body.language_code || "en").toLowerCase();
+      const languageCode = "en";
+      const countryCode = String(body.country_code || "").trim().toUpperCase() || null;
+      if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) return fail("Choose a valid target country or leave it global.");
       const allowedTypes = ["audio","image","image_labeling","text","translation"];
-      if (!["en","fr","sw"].includes(languageCode)) return fail("Choose English, French or Swahili.");
+      
       const title = String(body.title || "").trim().slice(0,120);
       const instructions = String(body.instructions || "").trim().slice(0,500);
       const prompt = String(body.prompt || "").trim().slice(0,500);
@@ -390,7 +392,7 @@ Deno.serve(async (req: Request) => {
       if (assetPath && taskType === "audio" && !assetMime?.startsWith("audio/")) return fail("Audio tasks need an audio file.");
       if (["image","image_labeling"].includes(taskType) && !assetMime?.startsWith("image/")) return fail("Image tasks need an image file.");
       const created = await one(admin.from("earn360_ai_tasks").insert({
-        task_type: taskType, language_code: languageCode, title, instructions, prompt, audio_text: audioText || null, options, expected_answer: expected,
+        task_type: taskType, language_code: languageCode, country_code: countryCode, title, instructions, prompt, audio_text: audioText || null, options, expected_answer: expected,
         asset_path: assetPath, asset_mime: assetMime, active: body.active !== false
       }).select("id,task_type,title,active").single());
       return reply({ message: "AI Training task added to the task bank.", task: created }, 201);
