@@ -33,6 +33,22 @@ jobs:
           });
           console.log(`Validated ${scripts.length} inline script(s).`);
           NODE
+      - name: Check AI Training answer normalization
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const source = fs.readFileSync('supabase/functions/earn360-api/index.ts', 'utf8');
+          const match = source.match(/\\.normalize\\("NFD"\\)\\.replace\\((\\/\\[[^\\n]+?\\/g), ""\\)/);
+          if (!match) throw new Error('AI Training normalizer pattern is missing.');
+          const literal = match[1];
+          const slash = literal.lastIndexOf('/');
+          const accents = new RegExp(literal.slice(1, slash), literal.slice(slash + 1));
+          const normalize = value => String(value ?? '').normalize('NFD').replace(accents, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+          for (const [input, expected] of [['Café', 'cafe'], ['ÉTÉ', 'ete'], ['français', 'francais'], ['à bientôt', 'a bientot']]) {
+            if (normalize(input) !== expected) throw new Error('Normalization failed for: ' + input);
+          }
+          console.log('AI Training accent-normalization tests passed.');
+          NODE
       - name: Check for private credentials in frontend
         run: |
           if grep -Eiq 'sb_secret_[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{30,}[.]' index.html; then
