@@ -310,7 +310,11 @@ Deno.serve(async (req: Request) => {
         .select("id,status,task:earn360_ai_tasks(expected_answer)")
         .eq("id", assignmentId).eq("user_id", u).eq("assigned_date", day).maybeSingle());
       if (!assignment?.task) return fail("This task is not assigned to your account today.");
-      if (assignment.status === "approved") return reply({ correct: true, message: "This task is already completed." });
+      if (assignment.status === "approved") {
+        const { data: rewardResult, error: rewardError } = await admin.rpc("earn360_award_ai_training_day", { p_user_id: u, p_earning_date: day });
+        if (rewardError) throw rewardError;
+        return reply({ correct: true, message: rewardResult?.completed ? "This task is already completed. Your daily reward is confirmed." : "This task is already completed.", day_completed: !!rewardResult?.completed, reward_amount: rewardResult?.reward_amount || 0 });
+      }
       const correct = normalizeTaskAnswer(answer) === normalizeTaskAnswer(assignment.task.expected_answer);
       if (!correct) return reply({ correct: false, message: "Not quite. Try again — this task is designed to be easy." });
       const { error } = await admin.from("earn360_ai_task_assignments").update({
