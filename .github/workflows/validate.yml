@@ -38,9 +38,12 @@ jobs:
           node - <<'NODE'
           const fs = require('node:fs');
           const source = fs.readFileSync('supabase/functions/earn360-api/index.ts', 'utf8');
-          const match = source.match(/\\.normalize\\("NFD"\\)\\.replace\\((\\/\\[[^\\n]+?\\/g), ""\\)/);
-          if (!match) throw new Error('AI Training normalizer pattern is missing.');
-          const literal = match[1];
+          const line = source.split('\n').find(line => line.includes('.normalize("NFD").replace('));
+          if (!line) throw new Error('AI Training normalizer pattern is missing.');
+          const start = line.indexOf('.replace(') + '.replace('.length;
+          const end = line.indexOf(', "")', start);
+          const literal = line.slice(start, end).trim();
+          if (!literal.startsWith('/') || !literal.endsWith('/g')) throw new Error('AI Training accent regex is invalid.');
           const slash = literal.lastIndexOf('/');
           const accents = new RegExp(literal.slice(1, slash), literal.slice(slash + 1));
           const normalize = value => String(value ?? '').normalize('NFD').replace(accents, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
