@@ -126,7 +126,7 @@ Deno.serve(async (req: Request) => {
 
     if (method === "GET" && path === "/api/subscriptions/plans") {
       const plans = await one(admin.from("membership_plans").select("id,name,price_usd,weekly_reward_usd,active").eq("active", true).order("price_usd"));
-      return reply({ plans: (plans || []).map((p: any) => ({ ...p, price: p.price_usd, weekly: p.weekly_reward_usd, featured: p.name === "Silver" })) });
+      return reply({ plans: (plans || []).map((p: any) => ({ ...p, price: p.price_usd, weekly: p.weekly_reward_usd, featured: p.name === "Skilled" })) });
     }
 
     if (method === "GET" && path === "/api/member/promotions") {
@@ -184,6 +184,22 @@ Deno.serve(async (req: Request) => {
     if (method === "GET" && path === "/api/member/withdrawals") {
       const rows = await one(admin.from("withdrawal_requests").select("id,amount,fee,net_amount,payment_method,account_details,payout_reference,status,admin_note,created_at").eq("user_id", u).order("created_at", { ascending: false }).limit(100));
       return reply({ withdrawals: (rows || []).map((x: any) => ({ id: x.id, gross_usd: Number(x.amount), fee_usd: Number(x.fee), net_usd: Number(x.net_amount), method: x.payment_method, payout_reference: x.payout_reference, payout_email: x.account_details, status: x.status === "paid" ? "completed" : x.status, admin_note: x.admin_note, created_at: x.created_at, payout_confirmation_reference: x.payout_reference })) });
+    }
+
+    if (method === "POST" && path === "/api/member/withdrawals") {
+      const amount = Number(body.gross_usd);
+      const methodName = String(body.method || "");
+      const destination = String(body.destination_details || "").trim();
+      const requestKey = String(body.request_key || "");
+      if (![12,30,45,80,100].includes(amount)) return fail("Choose $12, $30, $45, $80 or $100.");
+      if (methodName.toLowerCase() !== "paypal" || !/^\\S+@\\S+\\.\\S+$/.test(destination)) return fail("Enter a valid PayPal email address.");
+      if (!requestKey || requestKey.length > 100) return fail("Refresh and try your withdrawal request again.");
+      const { data, error } = await admin.rpc("earn360_request_withdrawal", {
+        p_user_id: u, p_amount: amount, p_method: "PayPal",
+        p_destination: destination, p_request_key: requestKey
+      });
+      if (error) throw error;
+      return reply({ message: data?.duplicate ? "This withdrawal request was already submitted." : "PayPal withdrawal request submitted for review.", withdrawal: data }, 201);
     }
 
     if (method === "GET" && path === "/api/payment-details") {
