@@ -358,7 +358,7 @@ Deno.serve(async (req: Request) => {
 
     if (path === "/api/admin/ai-training/tasks" && method === "GET") {
       await requireAdmin(profile);
-      const rows = await one(admin.from("earn360_ai_tasks").select("id,task_type,language_code,country_code,title,instructions,prompt,audio_text,options,expected_answer,asset_path,asset_mime,active,created_at").order("created_at", { ascending: false }));
+      const rows = await one(admin.from("earn360_ai_tasks").select("id,task_type,language_code,country_code,topic,title,instructions,prompt,audio_text,options,expected_answer,asset_path,asset_mime,active,created_at").order("created_at", { ascending: false }));
       const tasks = [];
       for (const t of rows || []) tasks.push({ ...t, asset_signed_url: t.asset_path ? await signedEvidence(t.asset_path) : null });
       const setting = await one(admin.from("earn360_settings").select("value").eq("key","ai_training").maybeSingle());
@@ -370,6 +370,8 @@ Deno.serve(async (req: Request) => {
       const taskType = String(body.task_type || "");
       const languageCode = "en";
       const countryCode = String(body.country_code || "").trim().toUpperCase() || null;
+      const topic = String(body.topic || "general");
+      if (!["local_culture","society","environment","everyday_life","general"].includes(topic)) return fail("Choose a valid local training topic.");
       if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) return fail("Choose a valid target country or leave it global.");
       const allowedTypes = ["audio","image","image_labeling","text","translation"];
       
@@ -392,7 +394,7 @@ Deno.serve(async (req: Request) => {
       if (assetPath && taskType === "audio" && !assetMime?.startsWith("audio/")) return fail("Audio tasks need an audio file.");
       if (["image","image_labeling"].includes(taskType) && !assetMime?.startsWith("image/")) return fail("Image tasks need an image file.");
       const created = await one(admin.from("earn360_ai_tasks").insert({
-        task_type: taskType, language_code: languageCode, country_code: countryCode, title, instructions, prompt, audio_text: audioText || null, options, expected_answer: expected,
+        task_type: taskType, language_code: languageCode, country_code: countryCode, topic, title, instructions, prompt, audio_text: audioText || null, options, expected_answer: expected,
         asset_path: assetPath, asset_mime: assetMime, active: body.active !== false
       }).select("id,task_type,title,active").single());
       return reply({ message: "AI Training task added to the task bank.", task: created }, 201);
