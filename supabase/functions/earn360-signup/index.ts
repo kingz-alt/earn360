@@ -58,8 +58,8 @@ const corsHeaders = {
                                                                                                             const invite_code = String(body.invite_code || "")
                                                                                                                   .trim()
                                                                                                                         .toUpperCase();
-const country = String(body.country || "TG").trim().toUpperCase();
-const display_currency = String(body.display_currency || "XOF").trim().toUpperCase();
+const country = String(body.country || "").trim().toUpperCase();
+const display_currency = String(body.display_currency || "").trim().toUpperCase();
 
                                                                                                                             // Validate registration details
                                                                                                                                 if (!full_name || !password || (!email && !phone)) {
@@ -153,6 +153,7 @@ if (!invite_code) {
 phone: phone || null,
 country,
 display_currency,
+preferred_language: "en",
 referred_by: invite_code,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           })
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   .eq("id", userId);
