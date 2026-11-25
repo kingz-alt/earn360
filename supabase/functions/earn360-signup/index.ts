@@ -168,6 +168,7 @@ referred_by: invite_code,
 phone: phone || null,
 country,
 display_currency,
+preferred_language: "en",
 referred_by: invite_code,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   });
 
