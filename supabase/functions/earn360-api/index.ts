@@ -279,7 +279,7 @@ Deno.serve(async (req: Request) => {
       const sub = await getActiveMembership(u);
       if (!sub) return reply({ active:false, activity_completed:false, message:"Activate a membership to access courier operations.", tasks:[] });
       if (!isWeekday(day)) return reply({ active:true, activity_completed:false, message:"Courier work assignments are available Monday to Friday.", tasks:[] });
-      const { error: genError } = await admin.schema("earn360_private").rpc("generate_daily_courier_tasks", { p_user_id:u });
+      const { error: genError } = await admin.rpc("earn360_generate_daily_courier_tasks", { p_user_id:u });
       if (genError) throw genError;
       const rows = await one(admin.from("earn360_courier_task_assignments")
         .select("id,status,task_number,operation,title,parcel_code,origin_hub,destination,recipient,prompt,options")
@@ -320,8 +320,8 @@ Deno.serve(async (req: Request) => {
         .update({status:"completed",submitted_answer:answer,submitted_at:new Date().toISOString()})
         .eq("id",assignmentId).eq("user_id",u);
       if(updateError) throw updateError;
-      const {data:rewardResult,error:rewardError}=await admin.schema("earn360_private")
-        .rpc("award_courier_work_day",{p_user_id:u,p_work_date:day});
+      const {data:rewardResult,error:rewardError}=await admin
+        .rpc("earn360_award_courier_work_day",{p_user_id:u,p_work_date:day});
       if(rewardError) throw rewardError;
       return reply({correct:true,message:rewardResult?.completed?"Parcel operation recorded. Today's four tasks are complete and the daily reward is confirmed.":"Parcel operation recorded successfully.",day_completed:!!rewardResult?.completed,reward_amount:rewardResult?.reward_amount||0});
     }
