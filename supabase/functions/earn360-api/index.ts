@@ -274,58 +274,66 @@ Deno.serve(async (req: Request) => {
 
 
 
-    if (method === "GET" && path === "/api/courier/tasks/today") {
+
+    if (method === "GET" && path === "/api/courier/today") {
       const day = dateInLome();
-      const sub = await getActiveMembership(u);
-      if (!sub) return reply({ active:false, activity_completed:false, message:"Activate a membership to access courier operations.", tasks:[] });
-      if (!isWeekday(day)) return reply({ active:true, activity_completed:false, message:"Courier work assignments are available Monday to Friday.", tasks:[] });
-      const { error: genError } = await admin.rpc("earn360_generate_daily_courier_tasks", { p_user_id:u });
-      if (genError) throw genError;
-      const rows = await one(admin.from("earn360_courier_task_assignments")
-        .select("id,status,task_number,operation,title,parcel_code,origin_hub,destination,recipient,prompt,options")
-        .eq("user_id",u).eq("assigned_date",day).order("task_number",{ascending:true}));
-      const tasks = (rows || []).map((x:any)=>({
-        assignment_id:x.id,status:x.status,task_number:x.task_number,operation:x.operation,title:x.title,
-        parcel_code:x.parcel_code,origin_hub:x.origin_hub,destination:x.destination,recipient:x.recipient,
-        prompt:x.prompt,options:Array.isArray(x.options)?x.options:[]
-      }));
-      const done=tasks.filter((x:any)=>x.status==="completed").length;
-      const reward=Number(sub.membership_plans?.weekly_reward_usd||0)/5;
-      return reply({
-        active:true,activity_completed:tasks.length===4&&done===4,
-        message:tasks.length===4?(done===4?"Today's courier work is complete.":"Complete your four assigned parcel operations."):
-          "Your daily courier assignments are being prepared. Refresh shortly.",
-        activity_label:"Courier operations",tasks_required:4,tasks_completed:done,
-        progress_percent:tasks.length?Math.round(done/4*100):0,
-        reward_display:"Potential daily reward "+ "$"+reward.toFixed(2),
-        tasks
-      });
+      const membership = await getActiveMembership(u);
+      if (!membership) return reply({active:false,message:"Activate an eligible rank to access courier assignments.",shipments:[],history:[]});
+      if (!isWeekday(day)) return reply({active:true,message:"Courier assignments are available Monday to Friday.",shipments:[],history:[]});
+      const {error:genError}=await admin.rpc("earn360_generate_daily_courier_tasks",{p_user_id:u});
+      if(genError) throw genError;
+      const rows=await one(admin.from("earn360_courier_task_assignments").select("id,status,task_number,product_name,client_name,address,city,country,shipment_reference,required_action,handling_instructions").eq("user_id",u).eq("assigned_date",day).order("task_number",{ascending:true}));
+      const historyRows=await one(admin.from("earn360_courier_task_assignments").select("id,status,product_name,shipment_reference,city,country,assigned_date").eq("user_id",u).eq("status","completed").order("assigned_date",{ascending:false}).limit(30));
+      const completed=(rows||[]).filter((x:any)=>x.status==="completed").length;
+      const dailyIncome=Number(membership.membership_plans?.weekly_reward_usd||0)/5;
+      return reply({active:true,total_today:(rows||[]).length,completed_today:completed,daily_income:dailyIncome,activity_completed:(rows||[]).length===4&&completed===4,
+        message:(rows||[]).length===4?(completed===4?"Today's courier assignments are complete.":"Review and complete your four assigned shipment records."):"New shipment records will appear as they are assigned.",
+        shipments:(rows||[]).map((x:any)=>({id:x.id,assignment_id:x.id,status:x.status,task_number:x.task_number,product_name:x.product_name,client_name:x.client_name,address:x.address,city:x.city,country:x.country,reference:x.shipment_reference,required_action:x.required_action,required_action_label:({verify_details:"Verify shipment details",confirm_sorting:"Confirm parcel sorting",confirm_dispatch:"Confirm dispatch preparation",confirm_scan:"Confirm parcel scan"} as Record<string,string>)[x.required_action]||"Review shipment details",instructions:x.handling_instructions})),
+        history:(historyRows||[]).map((x:any)=>({product_name:x.product_name,reference:x.shipment_reference,city:x.city,country:x.country,status:x.status,assigned_date:x.assigned_date}))});
     }
 
-    if (method === "POST" && path === "/api/courier/tasks/submit") {
+    if (method === "POST" && path === "/api/courier/submit") {
       const day=dateInLome();
-      const sub=await getActiveMembership(u);
-      if(!sub) return fail("An active membership is required for courier operations.");
-      if(!isWeekday(day)) return fail("Courier work assignments are available Monday to Friday.");
+      if(!await getActiveMembership(u)) return fail("An active rank is required for courier assignments.");
+      if(!isWeekday(day)) return fail("Courier assignments are available Monday to Friday.");
       const assignmentId=String(body.assignment_id||"");
-      const answer=String(body.answer||"").trim();
-      if(!assignmentId||!answer||answer.length>160) return fail("Select or enter the parcel information first.");
-      const assignment=await one(admin.from("earn360_courier_task_assignments")
-        .select("id,status,expected_answer").eq("id",assignmentId).eq("user_id",u).eq("assigned_date",day).maybeSingle());
+      if(!/^[0-9a-f-]{36}$/i.test(assignmentId)) return fail("Select a valid shipment assignment.");
+      const assignment=await one(admin.from("earn360_courier_task_assignments").select("id,status,shipment_id").eq("id",assignmentId).eq("user_id",u).eq("assigned_date",day).maybeSingle());
       if(!assignment) return fail("This assignment does not belong to your account today.");
-      if(assignment.status==="completed") return reply({correct:true,message:"This parcel operation is already recorded."});
-      if(normalizeTaskAnswer(answer)!==normalizeTaskAnswer(assignment.expected_answer))
-        return reply({correct:false,message:"The details do not match the parcel record. Review the shipment details and try again."});
-      const {error:updateError}=await admin.from("earn360_courier_task_assignments")
-        .update({status:"completed",submitted_answer:answer,submitted_at:new Date().toISOString()})
-        .eq("id",assignmentId).eq("user_id",u);
-      if(updateError) throw updateError;
-      const {data:rewardResult,error:rewardError}=await admin
-        .rpc("earn360_award_courier_work_day",{p_user_id:u,p_work_date:day});
+      if(assignment.status!=="completed"){
+        const {error:updateError}=await admin.from("earn360_courier_task_assignments").update({status:"completed",submitted_answer:"member_confirmed",submitted_at:new Date().toISOString()}).eq("id",assignmentId).eq("user_id",u);
+        if(updateError) throw updateError;
+        if(assignment.shipment_id){
+          const {error:shipmentError}=await admin.from("earn360_courier_shipments").update({status:"completed",updated_at:new Date().toISOString()}).eq("id",assignment.shipment_id).eq("assigned_user_id",u);
+          if(shipmentError) throw shipmentError;
+        }
+      }
+      const {data:rewardResult,error:rewardError}=await admin.rpc("earn360_award_courier_work_day",{p_user_id:u,p_work_date:day});
       if(rewardError) throw rewardError;
-      return reply({correct:true,message:rewardResult?.completed?"Parcel operation recorded. Today's four tasks are complete and the daily reward is confirmed.":"Parcel operation recorded successfully.",day_completed:!!rewardResult?.completed,reward_amount:rewardResult?.reward_amount||0});
+      return reply({message:rewardResult?.completed?"Shipment assignment recorded. Your daily rank reward has been credited.":"Shipment assignment marked complete.",completed:!!rewardResult?.completed,reward_amount:Number(rewardResult?.reward_amount||0)});
     }
 
+    if (method === "GET" && path === "/api/admin/courier/assignments") {
+      await requireAdmin(profile);
+      const rows=await one(admin.from("earn360_courier_shipments").select("id,product_name,client_name,address,city,country,shipment_reference,required_action,handling_instructions,eligible_rank,status,assigned_user_id,assigned_date,created_at").order("created_at",{ascending:false}).limit(300));
+      return reply({assignments:(rows||[]).map((x:any)=>({id:x.id,product_name:x.product_name,client_name:x.client_name,address:x.address,city:x.city,country:x.country,reference:x.shipment_reference,required_action:x.required_action,handling_instructions:x.handling_instructions,eligible_rank:x.eligible_rank,status:x.status,member_name:x.assigned_user_id?"Assigned member":"Available in pool",assigned_date:x.assigned_date,created_at:x.created_at}))});
+    }
+
+    if (method === "POST" && path === "/api/admin/courier/assignments") {
+      await requireAdmin(profile);
+      const product=String(body.product_name||"").trim(),client=String(body.client_name||"").trim(),address=String(body.address||"").trim(),city=String(body.city||"").trim(),country=String(body.country||"").trim();
+      const reference=String(body.shipment_reference||("E360-"+crypto.randomUUID().slice(0,8).toUpperCase())).trim();
+      const action=String(body.required_action||"verify_details"),rank=String(body.eligible_rank||"all");
+      const instructions=String(body.handling_instructions||"").trim().slice(0,500);
+      const eligibleCountry=body.eligible_country==null||String(body.eligible_country).trim()===""?null:String(body.eligible_country).trim().toUpperCase();
+      const ranks=["all","Rookie","Junior","Skilled","Senior","Expert","Master","Elite"];
+      const actions=["verify_details","confirm_sorting","confirm_dispatch","confirm_scan"];
+      if(product.length<2||product.length>140||client.length<2||client.length>120||address.length<3||address.length>180||city.length<2||city.length>90||country.length<2||country.length>90) return fail("Complete product name, client name, address, city and country.");
+      if(!ranks.includes(rank)||!actions.includes(action)) return fail("Choose a valid rank and handling action.");
+      if(eligibleCountry!==null&&!/^[A-Z]{2}$/.test(eligibleCountry)) return fail("Eligible member country must be a two-letter country code.");
+      const row=await one(admin.from("earn360_courier_shipments").insert({product_name:product,client_name:client,address,city,country,shipment_reference:reference,required_action:action,handling_instructions:instructions,eligible_rank:rank,eligible_country:eligibleCountry,created_by:u,status:"available"}).select("id,shipment_reference,status").single());
+      return reply({message:"Shipment record added to the assignment queue.",shipment:row},201);
+    }
     if (method === "POST" && path === "/api/support/tickets") {
       const subject = String(body.subject || "").trim();
       const message = String(body.message || "").trim();
