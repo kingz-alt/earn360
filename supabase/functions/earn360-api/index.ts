@@ -288,6 +288,59 @@ Deno.serve(async (req: Request) => {
     }
 
 
+
+    if (method === "GET" && path === "/api/courier/tasks/today") {
+      const day = dateInLome();
+      const sub = await getActiveMembership(u);
+      if (!sub) return reply({ active:false, activity_completed:false, message:"Activate a membership to access courier operations.", tasks:[] });
+      if (!isWeekday(day)) return reply({ active:true, activity_completed:false, message:"Courier work assignments are available Monday to Friday.", tasks:[] });
+      const { error: genError } = await admin.schema("earn360_private").rpc("generate_daily_courier_tasks", { p_user_id:u });
+      if (genError) throw genError;
+      const rows = await one(admin.from("earn360_courier_task_assignments")
+        .select("id,status,task_number,operation,title,parcel_code,origin_hub,destination,recipient,prompt,options")
+        .eq("user_id",u).eq("assigned_date",day).order("task_number",{ascending:true}));
+      const tasks = (rows || []).map((x:any)=>({
+        assignment_id:x.id,status:x.status,task_number:x.task_number,operation:x.operation,title:x.title,
+        parcel_code:x.parcel_code,origin_hub:x.origin_hub,destination:x.destination,recipient:x.recipient,
+        prompt:x.prompt,options:Array.isArray(x.options)?x.options:[]
+      }));
+      const done=tasks.filter((x:any)=>x.status==="completed").length;
+      const reward=Number(sub.membership_plans?.weekly_reward_usd||0)/5;
+      return reply({
+        active:true,activity_completed:tasks.length===4&&done===4,
+        message:tasks.length===4?(done===4?"Today's courier work is complete.":"Complete your four assigned parcel operations."):
+          "Your daily courier assignments are being prepared. Refresh shortly.",
+        activity_label:"Courier operations",tasks_required:4,tasks_completed:done,
+        progress_percent:tasks.length?Math.round(done/4*100):0,
+        reward_display:"Potential daily reward "+ "$"+reward.toFixed(2),
+        tasks
+      });
+    }
+
+    if (method === "POST" && path === "/api/courier/tasks/submit") {
+      const day=dateInLome();
+      const sub=await getActiveMembership(u);
+      if(!sub) return fail("An active membership is required for courier operations.");
+      if(!isWeekday(day)) return fail("Courier work assignments are available Monday to Friday.");
+      const assignmentId=String(body.assignment_id||"");
+      const answer=String(body.answer||"").trim();
+      if(!assignmentId||!answer||answer.length>160) return fail("Select or enter the parcel information first.");
+      const assignment=await one(admin.from("earn360_courier_task_assignments")
+        .select("id,status,expected_answer").eq("id",assignmentId).eq("user_id",u).eq("assigned_date",day).maybeSingle());
+      if(!assignment) return fail("This assignment does not belong to your account today.");
+      if(assignment.status==="completed") return reply({correct:true,message:"This parcel operation is already recorded."});
+      if(normalizeTaskAnswer(answer)!==normalizeTaskAnswer(assignment.expected_answer))
+        return reply({correct:false,message:"The details do not match the parcel record. Review the shipment details and try again."});
+      const {error:updateError}=await admin.from("earn360_courier_task_assignments")
+        .update({status:"completed",submitted_answer:answer,submitted_at:new Date().toISOString()})
+        .eq("id",assignmentId).eq("user_id",u);
+      if(updateError) throw updateError;
+      const {data:rewardResult,error:rewardError}=await admin.schema("earn360_private")
+        .rpc("award_courier_work_day",{p_user_id:u,p_work_date:day});
+      if(rewardError) throw rewardError;
+      return reply({correct:true,message:rewardResult?.completed?"Parcel operation recorded. Today's four tasks are complete and the daily reward is confirmed.":"Parcel operation recorded successfully.",day_completed:!!rewardResult?.completed,reward_amount:rewardResult?.reward_amount||0});
+    }
+
     if (method === "GET" && path === "/api/ai-training/today") {
       const day = dateInLome();
       const sub = await getActiveMembership(u);
