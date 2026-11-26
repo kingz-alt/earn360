@@ -287,7 +287,7 @@ Deno.serve(async (req: Request) => {
       const completed=(rows||[]).filter((x:any)=>x.status==="completed").length;
       const dailyIncome=Number(membership.membership_plans?.weekly_reward_usd||0)/5;
       return reply({active:true,total_today:(rows||[]).length,completed_today:completed,daily_income:dailyIncome,activity_completed:(rows||[]).length===4&&completed===4,
-        message:(rows||[]).length===4?(completed===4?"Today's courier assignments are complete.":"Review and complete your four assigned shipment records."):"New shipment records will appear as they are assigned.",
+        message:(rows||[]).length===4?(completed===4?"Today's courier assignments are complete.":"Review and complete your four assigned shipment records."):(rows||[]).length===0?"No shipment assignments are available today. Please check again after the shipment queue is updated.":"Your shipment assignment queue is being filled.",
         shipments:(rows||[]).map((x:any)=>({id:x.id,assignment_id:x.id,status:x.status,task_number:x.task_number,product_name:x.product_name,client_name:x.client_name,address:x.address,city:x.city,country:x.country,reference:x.shipment_reference,required_action:x.required_action,required_action_label:({verify_details:"Verify shipment details",confirm_sorting:"Confirm parcel sorting",confirm_dispatch:"Confirm dispatch preparation",confirm_scan:"Confirm parcel scan"} as Record<string,string>)[x.required_action]||"Review shipment details",instructions:x.handling_instructions})),
         history:(historyRows||[]).map((x:any)=>({product_name:x.product_name,reference:x.shipment_reference,city:x.city,country:x.country,status:x.status,assigned_date:x.assigned_date}))});
     }
