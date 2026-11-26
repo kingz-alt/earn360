@@ -112,3 +112,11 @@ begin
   return v_added;
 end;
 $$;
+
+-- Keep shipment records and reward RPCs server-only.
+revoke all on table public.earn360_courier_shipments from anon, authenticated;
+grant all on table public.earn360_courier_shipments to service_role;
+revoke all on function public.earn360_generate_daily_courier_tasks(uuid) from public, anon, authenticated;
+grant execute on function public.earn360_generate_daily_courier_tasks(uuid) to service_role;
+revoke all on function public.earn360_award_courier_work_day(uuid,date) from public, anon, authenticated;
+grant execute on function public.earn360_award_courier_work_day(uuid,date) to service_role;
