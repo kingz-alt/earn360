@@ -131,8 +131,8 @@ a{color:#1e5da8}
 </div><div class="auth-copyright">© 2025 Earn360. All rights reserved.</div></div>
 </section>
 <div class="app" id="app">
-<aside class="sidebar"><div class="logo"><div class="logo-mark">E</div><div>Earn<span>360</span></div></div><div class="nav-label">OVERVIEW</div><button class="nav-btn active" data-page="dashboard"><span class="nav-ico">⌂</span>Dashboard</button><button class="nav-btn" data-page="activities"><span class="nav-ico">◉</span> Courier Service</button><button class="nav-btn" data-page="subscriptions"><span class="nav-ico">♛</span>Work Ranks</button><div class="nav-label">MY FINANCES</div><button class="nav-btn" data-page="wallet"><span class="nav-ico">▣</span>Wallet &amp; transactions</button><button class="nav-btn" data-page="deposits"><span class="nav-ico">＋</span>Deposit instructions</button><button class="nav-btn" data-page="withdrawals"><span class="nav-ico">↗</span>Withdrawals</button><button class="nav-btn" data-page="investments"><span class="nav-ico">◈</span>Investment offers</button><div class="nav-label">COMMUNITY</div><button class="nav-btn" data-page="referrals"><span class="nav-ico">♧</span>Referrals</button><button class="nav-btn" data-page="campaigns"><span class="nav-ico">✦</span>Promotions &amp; campaigns</button><button class="nav-btn" data-page="chat360"><span class="nav-ico">◌</span>Chat360</button><div class="nav-label">ACCOUNT</div><button class="nav-btn" data-page="profile"><span class="nav-ico">◎</span>My profile</button><button class="nav-btn" data-page="support"><span class="nav-ico">?</span>Help &amp; support</button><button class="nav-btn hidden" data-page="admin" id="adminNav"><span class="nav-ico">⚙</span>Admin dashboard</button><div class="side-bottom"><div class="member"><div class="avatar" id="sideAvatar">M</div><div><b id="sideName">Member</b><small id="sidePlan">Member account</small></div></div><button class="link" id="logoutBtn" style="margin-top:12px;padding:0">Log out ↗</button></div></aside>
-<main class="main"><header class="topbar"><div><div class="eyebrow">EARN360 MEMBER AREA</div><div class="top-title" id="topTitle">Dashboard</div></div><div class="top-right"><span class="status"><i></i> Connected account</span><button aria-label="Support" class="icon-btn" onclick="go('support')">?</button><button aria-label="Profile" class="icon-btn" onclick="go('profile')">◎</button></div></header>
+<aside class="sidebar"><div class="logo"><div class="logo-mark">E</div><div>Earn<span>360</span></div></div><div class="nav-label">WORKSPACE</div><button class="nav-btn active" data-page="dashboard"><span class="nav-ico">⌂</span>Home page</button><button class="nav-btn" data-page="activities"><span class="nav-ico">▣</span>Courier Task</button><button class="nav-btn" data-page="subscriptions"><span class="nav-ico">♛</span>Work rank</button><button class="nav-btn" data-page="wallet"><span class="nav-ico">◈</span>Wallet</button><button class="nav-btn" data-page="deposits"><span class="nav-ico">＋</span>Deposit</button><button class="nav-btn" data-page="profile"><span class="nav-ico">◎</span>Profile</button><button class="nav-btn hidden" data-page="admin" id="adminNav"><span class="nav-ico">⚙</span>Admin</button><div class="side-bottom"><div class="member"><div class="avatar" id="sideAvatar">M</div><div><b id="sideName">Member</b><small id="sidePlan">Member account</small></div></div><button class="link" id="logoutBtn" style="margin-top:12px;padding:0">Log out ↗</button></div></aside>
+<main class="main"><header class="topbar"><div><div class="eyebrow">EARN360 WORKSPACE</div><div class="top-title" id="topTitle">Home page</div></div><div class="top-right"><span class="status"><i></i> Connected account</span><button aria-label="Support" class="icon-btn" onclick="go('support')">?</button><button aria-label="Profile" class="icon-btn" onclick="go('profile')">◎</button></div></header>
 <div class="content">
 <section class="page active" id="dashboard"><div class="welcome"><div><div class="eyebrow">MEMBER OVERVIEW</div><h1>Welcome, <span id="welcomeName">Member</span></h1><p>Your Earn360 account at a glance.</p></div><span class="pill goldpill" id="planBadge">No active plan</span></div>
 <div class="hero"><div class="balance-card"><div style="font-size:11px;color:#d6e1ef">Available wallet balance</div><div class="balance-amount" id="dashBalance">—</div><div class="balance-meta"><div><span>Total earned</span><b id="dashEarned">—</b></div><div><span>Withdrawn</span><b id="dashWithdrawn">—</b></div><div><span>Pending</span><b id="dashPending">—</b></div></div><div class="actions"><button class="btn" onclick="go('wallet')">Open wallet</button><button class="btn ghost" onclick="go('withdrawals')">Withdraw</button></div></div>
@@ -182,7 +182,7 @@ a{color:#1e5da8}
 <div class="notice hidden" id="adminCourierMessage"></div><div class="section-head"><h3>Shipment assignment queue</h3></div><div id="adminCourierList"><div class="empty">Load the shipment queue to view assignments.</div></div></div></section>
 <div class="footer">© 2025 Earn360. All rights reserved.</div>
 </div></main>
-<nav class="mobile-nav"><button class="active" data-page="dashboard"><span>⌂</span>Home</button><button data-page="activities"><span>◉</span>Earn</button><button data-page="subscriptions"><span>♛</span>Plans</button><button data-page="wallet"><span>▣</span>Wallet</button><button data-page="deposits"><span>＋</span>Deposit</button><button data-page="profile"><span>◎</span>Profile</button><button class="hidden" id="adminMobileNav" data-page="admin"><span>⚙</span>Admin</button></nav>
+<nav class="mobile-nav"><button class="active" data-page="dashboard"><span>⌂</span>Home</button><button data-page="activities"><span>▣</span>Courier Task</button><button data-page="subscriptions"><span>♛</span>Work rank</button><button data-page="wallet"><span>◈</span>Wallet</button><button data-page="deposits"><span>＋</span>Deposit</button><button data-page="profile"><span>◎</span>Profile</button><button class="hidden" id="adminMobileNav" data-page="admin"><span>⚙</span>Admin</button></nav>
 </div>
 <div class="toast" id="toast"></div><div class="modal-back" id="modalBack"><div class="modal"><button class="modal-close" onclick="closeModal()">✕</button><div id="modalBody"></div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -274,3 +274,46 @@ $('loadCourierAdmin')?.addEventListener('click',loadCourierAdmin);
 $('adminCourierForm')?.addEventListener('submit',async e=>{e.preventDefault();const b=e.currentTarget.querySelector('button[type=submit]');b.disabled=true;try{const body={eligible_country:$('shipEligibleCountry').value.trim().toUpperCase()||null,product_name:$('shipProduct').value.trim(),client_name:$('shipClient').value.trim(),address:$('shipAddress').value.trim(),city:$('shipCity').value.trim(),country:$('shipCountry').value.trim(),shipment_reference:$('shipCode').value.trim()||null,required_action:$('shipAction').value,eligible_rank:$('shipRank').value,handling_instructions:$('shipNotes').value.trim()};const r=await api('/api/admin/courier/assignments',{method:'POST',body:JSON.stringify(body)});$('adminCourierMessage').classList.remove('hidden');$('adminCourierMessage').textContent=r.message||'Shipment assignment published.';e.currentTarget.reset();await loadCourierAdmin();}catch(err){$('adminCourierMessage').classList.remove('hidden');$('adminCourierMessage').textContent=err.message;}finally{b.disabled=false;}});
 const originalGo=window.go;if(typeof originalGo==='function'){window.go=function(page){originalGo(page);if(page==='activities')loadCourier();if(page==='admin')loadCourierAdmin();};}
 })();</script></body></html>
+
+/* Approved Earn360 white / royal-blue / gold visual theme */
+:root{--bg:#f3f6fb;--surface:#fff;--surface2:#f7f9fd;--line:#dce4ef;--ink:#17243a;--muted:#687891;--gold:#d6a12e;--gold2:#f0c65f;--green:#16865b;--red:#c94b55;--blue:#2457b8;--radius:18px;--shadow:0 12px 32px #1d37600f}
+body{background:#f3f6fb;color:var(--ink);font-family:Inter,"Segoe UI",Arial,sans-serif}
+.sidebar{background:#fff;border-right:1px solid #e0e7f1;box-shadow:8px 0 28px #1d376008}
+.nav-label{color:#8290a5}.nav-btn{color:#52627b;border-radius:12px;padding:12px 13px;font-weight:750}
+.nav-btn:hover,.nav-btn.active{background:#eaf0fc;color:#214fa8}
+.nav-ico{width:26px;height:26px;display:grid;place-items:center;border-radius:9px;background:#edf2fb;color:#2457b8;font-size:15px}
+.nav-btn.active .nav-ico{background:#2457b8;color:#fff}
+.logo-mark,.avatar{background:linear-gradient(145deg,#f3d47e,#d6a12e);color:#26324a;box-shadow:0 6px 16px #d6a12e22}
+.logo span{color:#2457b8}
+.main{background:#f3f6fb}.topbar{background:#ffffffed;border-bottom:1px solid #e0e7f1}
+.eyebrow{color:#2457b8}.top-title{color:#17243a}.status{background:#eaf7f0;border-color:#ccebd9;color:#16865b}.status i{background:#21a56d}
+.icon-btn{background:#f5f7fb;border-color:#dce4ef;color:#2457b8}
+.card,.plan{background:#fff;border:1px solid #e1e7f0;box-shadow:0 8px 24px #1d37600a;color:#17243a}
+.balance-card{background:linear-gradient(120deg,#1e4b9c,#2864c7 68%,#d5a33b);border:0;box-shadow:0 14px 34px #2457b822}
+.balance-card:after{border-color:#ffffff30;box-shadow:0 0 0 24px #ffffff0c,0 0 0 48px #ffffff08}
+.btn{background:linear-gradient(110deg,#e2b64e,#f4d47d);color:#26324a;box-shadow:0 7px 18px #d6a12e24}
+.btn.secondary{background:#2457b8;border:1px solid #2457b8;color:#fff}.btn.ghost{background:#fff;border:1px solid #2457b8;color:#2457b8}
+.field input,.field select,.field textarea{background:#fff;color:#17243a;border-color:#d4deeb}
+.field label{color:#52627b}.field input::placeholder{color:#9aa7b8}
+.phone-prefix,.toggle-pass{background:#edf2fb;border-color:#d4deeb;color:#2457b8}
+.quick{background:#fff;border-color:#e1e7f0;color:#17243a;box-shadow:0 8px 24px #1d37600a}
+.quick .qico,.activity-icon{background:#edf2fb;color:#2457b8}
+.activity{border-color:#e8edf4}.activity-info small,.muted,.welcome p{color:#687891}
+.pill{background:#edf2fb;color:#52627b}.pill.goldpill{background:#fff5dc;color:#91660b}
+.pill.greenpill{background:#e6f6ed;color:#16865b}
+.progress{background:#e7edf5}.progress>i{background:linear-gradient(90deg,#2457b8,#e2b64e)}
+.notice{background:#fff7e5;border-color:#f0d99b;color:#775a18}.notice.blue{background:#edf3ff;border-color:#d3e0fb;color:#31558f}.notice.rednote{background:#fff0f0;border-color:#f3cece;color:#9b3b43}
+.table-wrap{border-color:#e1e7f0}.table th{background:#edf2fb;color:#52627b}.table td{border-color:#edf1f6}
+.tab{background:#fff;border-color:#dce4ef;color:#52627b}.tab.active{background:#edf3ff;border-color:#9db7e9;color:#2457b8}
+.side-bottom{background:#f7f9fd;border-color:#e1e7f0}.member small{color:#687891}
+.mobile-nav{background:#fffF;border-top:1px solid #dce4ef;box-shadow:0 -8px 25px #1d37600a}
+.mobile-nav button{color:#7b899e}.mobile-nav button span{width:27px;height:25px;display:grid;place-items:center;border-radius:8px;background:#edf2fb;color:#2457b8;font-size:16px}
+.mobile-nav button.active{color:#2457b8}.mobile-nav button.active span{background:#2457b8;color:#fff}
+.modal{background:#fff;border-color:#dce4ef;color:#17243a}.modal-close{background:#edf2fb;color:#2457b8}
+.toast{background:#fff;border-color:#dce4ef;color:#17243a}
+.auth-art{background:linear-gradient(145deg,#1e4b9c,#17366c 75%);border-color:#dce4ef}
+.auth-panel{background:#f3f6fb}.auth-card{background:#fff;border-color:#e1e7f0;color:#17243a}
+.auth-card h2{color:#17243a}.auth-tabs{background:#f3f6fb;border-color:#e1e7f0}
+.auth-tabs button.active{background:#eaf0fc;color:#2457b8}
+@media(max-width:720px){.mobile-nav{justify-content:space-around;padding-left:2px;padding-right:2px}.mobile-nav button{min-width:0;flex:1;font-size:8px}.mobile-nav button span{font-size:15px}}
+
