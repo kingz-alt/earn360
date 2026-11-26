@@ -26,21 +26,6 @@ function safeName(v: string) { return v.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0
 function normalizeTaskAnswer(value: unknown) {
   return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
-async function uploadTrainingAsset(userId: string, base64: string, mime: string, filename: string) {
-  const allowed: Record<string,string> = {
-    "image/jpeg":"jpg","image/png":"png","image/webp":"webp",
-    "audio/mpeg":"mp3","audio/mp4":"m4a","audio/wav":"wav","audio/ogg":"ogg","audio/webm":"webm"
-  };
-  if (!allowed[mime]) throw new Error("Use JPG, PNG, WEBP, MP3, M4A, WAV, OGG or WEBM media.");
-  if (typeof base64 !== "string" || base64.length > 11_000_000) throw new Error("Training media file is too large.");
-  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-  if (bytes.length > 8 * 1024 * 1024) throw new Error("Training media must be 8 MB or smaller.");
-  const path = "ai-training/" + userId + "/" + crypto.randomUUID() + "-" + safeName(filename || ("task." + allowed[mime]));
-  const { error } = await admin.storage.from("earn360-private").upload(path, bytes, { contentType: mime, upsert: false });
-  if (error) throw error;
-  return path;
-}
-
 async function uploadEvidence(userId: string, base64: string, mime: string, filename: string) {
   const allowed: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
   if (!allowed[mime]) throw new Error("Evidence must be a JPG, PNG or WEBP image.");
@@ -341,70 +326,6 @@ Deno.serve(async (req: Request) => {
       return reply({correct:true,message:rewardResult?.completed?"Parcel operation recorded. Today's four tasks are complete and the daily reward is confirmed.":"Parcel operation recorded successfully.",day_completed:!!rewardResult?.completed,reward_amount:rewardResult?.reward_amount||0});
     }
 
-    if (method === "GET" && path === "/api/ai-training/today") {
-      const day = dateInLome();
-      const sub = await getActiveMembership(u);
-      if (!sub) return reply({ active: false, activity_completed: false, message: "Activate a subscription to unlock daily AI Training tasks.", tasks: [] });
-      if (!isWeekday(day)) return reply({ active: true, activity_completed: false, message: "AI Training rewards are available Monday to Friday.", tasks: [] });
-      const existing = await one(admin.from("earn360_ai_task_assignments").select("id").eq("user_id", u).eq("assigned_date", day).limit(1));
-      if (!existing?.length) await admin.rpc("earn360_assign_daily_ai_training_tasks");
-      const rows = await one(admin.from("earn360_ai_task_assignments")
-        .select("id,status,assigned_date,task:earn360_ai_tasks(id,task_type,language_code,title,instructions,prompt,audio_text,options,asset_path,asset_mime)")
-        .eq("user_id", u).eq("assigned_date", day).order("created_at", { ascending: true }));
-      const tasks = [];
-      for (const row of rows || []) {
-        const t = row.task;
-        if (!t) continue;
-        tasks.push({
-          assignment_id: row.id, status: row.status, task_type: t.task_type,
-          title: t.title, instructions: t.instructions, prompt: t.prompt, audio_text: t.audio_text || null,
-          options: Array.isArray(t.options) ? t.options : [],
-          asset_url: t.asset_path ? await signedEvidence(t.asset_path) : null,
-          asset_mime: t.asset_mime || null, language_code: t.language_code || "en"
-        });
-      }
-      const completed = tasks.filter((x: any) => x.status === "approved").length;
-      const reward = Number(sub.membership_plans?.weekly_reward_usd || 0) / 5;
-      return reply({
-        active: true, preferred_language: "en", activity_completed: tasks.length > 0 && completed === tasks.length,
-        message: tasks.length ? (completed === tasks.length ? "You completed today's AI Training tasks." : "Complete your simple daily AI Training tasks to earn today's reward.") : "Daily tasks are being prepared. Please check again shortly.",
-        activity_label: "AI Training", tasks_required: tasks.length, tasks_completed: completed,
-        progress_percent: tasks.length ? Math.round(completed / tasks.length * 100) : 0,
-        reward_display: "$" + reward.toFixed(2), tasks
-      });
-    }
-
-    if (method === "POST" && path === "/api/ai-training/submit") {
-      const day = dateInLome();
-      const sub = await getActiveMembership(u);
-      if (!sub) return fail("An active subscription is required for AI Training.");
-      if (!isWeekday(day)) return fail("AI Training rewards are available Monday to Friday.");
-      const assignmentId = String(body.assignment_id || "");
-      const answer = String(body.answer || "").trim();
-      if (!assignmentId || !answer || answer.length > 300) return fail("Choose or enter your answer first.");
-      const assignment = await one(admin.from("earn360_ai_task_assignments")
-        .select("id,status,task:earn360_ai_tasks(expected_answer)")
-        .eq("id", assignmentId).eq("user_id", u).eq("assigned_date", day).maybeSingle());
-      if (!assignment?.task) return fail("This task is not assigned to your account today.");
-      if (assignment.status === "approved") {
-        const { data: rewardResult, error: rewardError } = await admin.rpc("earn360_award_ai_training_day", { p_user_id: u, p_earning_date: day });
-        if (rewardError) throw rewardError;
-        return reply({ correct: true, message: rewardResult?.completed ? "This task is already completed. Your daily reward is confirmed." : "This task is already completed.", day_completed: !!rewardResult?.completed, reward_amount: rewardResult?.reward_amount || 0 });
-      }
-      const correct = normalizeTaskAnswer(answer) === normalizeTaskAnswer(assignment.task.expected_answer);
-      if (!correct) return reply({ correct: false, message: "Not quite. Try again — this task is designed to be easy." });
-      const { error } = await admin.from("earn360_ai_task_assignments").update({
-        status: "approved", submitted_answer: answer, submitted_at: new Date().toISOString(), checked_at: new Date().toISOString()
-      }).eq("id", assignmentId).eq("user_id", u);
-      if (error) throw error;
-      const { data: rewardResult, error: rewardError } = await admin.rpc("earn360_award_ai_training_day", { p_user_id: u, p_earning_date: day });
-      if (rewardError) throw rewardError;
-      return reply({
-        correct: true, message: rewardResult?.completed ? "Correct! You finished today's AI Training and your daily reward has been credited." : "Correct! Task completed.",
-        day_completed: !!rewardResult?.completed, reward_amount: rewardResult?.reward_amount || 0
-      });
-    }
-
     if (method === "POST" && path === "/api/support/tickets") {
       const subject = String(body.subject || "").trim();
       const message = String(body.message || "").trim();
@@ -469,70 +390,6 @@ Deno.serve(async (req: Request) => {
       for (const x of depositRows || []) queue.push({ id: x.id, type: "Deposit", title: "PayPal payment", member: names.get(x.user_id) || "Member", purpose: x.purpose, external_reference: x.transaction_id, created_at: x.created_at, status: x.status, evidence_signed_url: await signedEvidence(x.proof_url) });
       const withdrawal_queue = (withdrawalRows || []).map((x: any) => ({ id: x.id, member: names.get(x.user_id) || "Member", member_email: "", gross_usd: Number(x.amount), fee_usd: Number(x.fee), net_usd: Number(x.net_amount), payout_method: x.payment_method, payout_reference: x.account_details, created_at: x.created_at }));
       return reply({ member_count: memberCount || 0, pending_deposits: pendingDeposits || 0, pending_withdrawals: pendingWithdrawals || 0, active_subscriptions: activeSubs || 0, queue, withdrawal_queue });
-    }
-
-    if (path === "/api/admin/ai-training/tasks" && method === "GET") {
-      await requireAdmin(profile);
-      const rows = await one(admin.from("earn360_ai_tasks").select("id,task_type,language_code,country_code,topic,title,instructions,prompt,audio_text,options,expected_answer,asset_path,asset_mime,active,created_at").order("created_at", { ascending: false }));
-      const tasks = [];
-      for (const t of rows || []) tasks.push({ ...t, asset_signed_url: t.asset_path ? await signedEvidence(t.asset_path) : null });
-      const setting = await one(admin.from("earn360_settings").select("value").eq("key","ai_training").maybeSingle());
-      return reply({ tasks, settings: setting?.value || { daily_task_count: 5, auto_publish: true, auto_check: true, easy_mode: true } });
-    }
-
-    if (path === "/api/admin/ai-training/tasks" && method === "POST") {
-      await requireAdmin(profile);
-      const taskType = String(body.task_type || "");
-      const languageCode = "en";
-      const countryCode = String(body.country_code || "").trim().toUpperCase() || null;
-      const topic = String(body.topic || "general");
-      if (!["local_culture","society","environment","everyday_life","general"].includes(topic)) return fail("Choose a valid local training topic.");
-      if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) return fail("Choose a valid target country or leave it global.");
-      const allowedTypes = ["audio","image","image_labeling","text"];
-      
-      const title = String(body.title || "").trim().slice(0,120);
-      const instructions = String(body.instructions || "").trim().slice(0,500);
-      const prompt = String(body.prompt || "").trim().slice(0,500);
-      const audioText = String(body.audio_text || "").trim().slice(0,500);
-      const expected = String(body.expected_answer || "").trim().slice(0,200);
-      const options = Array.isArray(body.options) ? body.options.map((x: any)=>String(x).trim().slice(0,100)).filter(Boolean).slice(0,8) : [];
-      if (!allowedTypes.includes(taskType) || !title || !prompt || !expected) return fail("Complete the task type, title, question and correct answer.");
-      if (options.length && !options.some((x: string)=>normalizeTaskAnswer(x)===normalizeTaskAnswer(expected))) return fail("The correct answer must be one of the answer choices.");
-      let assetPath: string | null = null;
-      let assetMime: string | null = null;
-      if (body.asset_base64) {
-        assetMime = String(body.asset_mime || "");
-        assetPath = await uploadTrainingAsset(u, body.asset_base64, assetMime, String(body.asset_name || "task-media"));
-      }
-      if (["image","image_labeling"].includes(taskType) && !assetPath) return fail("Image tasks need an image file.");
-      if (taskType === "audio" && !assetPath && !audioText) return fail("Add an audio sentence or upload an audio file.");
-      if (assetPath && taskType === "audio" && !assetMime?.startsWith("audio/")) return fail("Audio tasks need an audio file.");
-      if (["image","image_labeling"].includes(taskType) && !assetMime?.startsWith("image/")) return fail("Image tasks need an image file.");
-      const created = await one(admin.from("earn360_ai_tasks").insert({
-        task_type: taskType, language_code: languageCode, country_code: countryCode, topic, title, instructions, prompt, audio_text: audioText || null, options, expected_answer: expected,
-        asset_path: assetPath, asset_mime: assetMime, active: body.active !== false
-      }).select("id,task_type,title,active").single());
-      return reply({ message: "AI Training task added to the task bank.", task: created }, 201);
-    }
-
-    if (path === "/api/admin/ai-training/tasks" && method === "PATCH") {
-      await requireAdmin(profile);
-      const taskId = String(body.task_id || "");
-      if (!taskId || typeof body.active !== "boolean") return fail("Choose a task and its active status.");
-      const { data, error } = await admin.from("earn360_ai_tasks").update({ active: body.active, updated_at: new Date().toISOString() }).eq("id", taskId).select("id,active").maybeSingle();
-      if (error) throw error;
-      if (!data) return fail("Task was not found.");
-      return reply({ message: data.active ? "Task enabled for future daily assignments." : "Task disabled for future daily assignments.", task: data });
-    }
-
-    if (path === "/api/admin/ai-training/settings" && method === "PATCH") {
-      await requireAdmin(profile);
-      const count = Math.floor(Number(body.daily_task_count));
-      if (!Number.isInteger(count) || count < 1 || count > 20) return fail("Daily task count must be between 1 and 20.");
-      const value = { daily_task_count: count, auto_publish: true, auto_check: true, easy_mode: true };
-      const { error } = await admin.from("earn360_settings").upsert({ key: "ai_training", value, updated_at: new Date().toISOString(), updated_by: u });
-      if (error) throw error;
-      return reply({ message: "AI Training settings saved.", settings: value });
     }
 
     if (path === "/api/admin/payment-details" && method === "GET") {
